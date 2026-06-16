@@ -6,6 +6,37 @@ enum ActivityKind { transaction, saving }
 
 enum EntryTab { all, generalIncome, saving }
 
+enum TransactionLocationSource { gps, manual }
+
+class TransactionLocation {
+  const TransactionLocation({
+    required this.latitude,
+    required this.longitude,
+    required this.source,
+  });
+
+  final double latitude;
+  final double longitude;
+  final TransactionLocationSource source;
+
+  factory TransactionLocation.fromJson(Map<String, dynamic> json) {
+    final source = (json['source'] as String?) == 'manual'
+        ? TransactionLocationSource.manual
+        : TransactionLocationSource.gps;
+    return TransactionLocation(
+      latitude: (json['latitude'] as num).toDouble(),
+      longitude: (json['longitude'] as num).toDouble(),
+      source: source,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'latitude': latitude,
+    'longitude': longitude,
+    'source': source == TransactionLocationSource.manual ? 'manual' : 'gps',
+  };
+}
+
 class UserProfile {
   const UserProfile({
     required this.id,
@@ -144,6 +175,7 @@ class TransactionEntry {
     required this.categoryId,
     required this.date,
     this.note,
+    this.location,
     this.deleted = false,
     this.previousCategoryId,
   });
@@ -154,6 +186,7 @@ class TransactionEntry {
   final String? categoryId;
   final DateTime date;
   final String? note;
+  final TransactionLocation? location;
   final bool deleted;
   final String? previousCategoryId;
 
@@ -163,9 +196,11 @@ class TransactionEntry {
     String? categoryId,
     DateTime? date,
     String? note,
+    TransactionLocation? location,
     bool? deleted,
     String? previousCategoryId,
     bool clearCategory = false,
+    bool clearLocation = false,
   }) {
     return TransactionEntry(
       id: id,
@@ -174,6 +209,7 @@ class TransactionEntry {
       categoryId: clearCategory ? null : categoryId ?? this.categoryId,
       date: date ?? this.date,
       note: note ?? this.note,
+      location: clearLocation ? null : location ?? this.location,
       deleted: deleted ?? this.deleted,
       previousCategoryId: previousCategoryId ?? this.previousCategoryId,
     );
@@ -187,6 +223,11 @@ class TransactionEntry {
         categoryId: json['categoryId'] as String?,
         date: DateTime.parse(json['date'] as String),
         note: json['note'] as String?,
+        location: json['location'] == null
+            ? null
+            : TransactionLocation.fromJson(
+                json['location'] as Map<String, dynamic>,
+              ),
       );
 
   Map<String, dynamic> toJson() => {
@@ -196,6 +237,7 @@ class TransactionEntry {
     'categoryId': categoryId,
     'date': date.toIso8601String().substring(0, 10),
     'note': note,
+    'location': location?.toJson(),
   };
 }
 

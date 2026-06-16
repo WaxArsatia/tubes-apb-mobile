@@ -35,4 +35,35 @@ void main() {
       SavingType.generalIncome,
     );
   });
+
+  test('transaction serializes nullable location', () {
+    final transaction = TransactionEntry(
+      id: 'tx-1',
+      name: 'Lunch',
+      amount: 35000,
+      categoryId: 'cat-food',
+      date: DateTime(2026, 4, 10),
+      location: const TransactionLocation(
+        latitude: -6.2,
+        longitude: 106.816666,
+        source: TransactionLocationSource.gps,
+      ),
+    );
+
+    final json = transaction.toJson();
+    expect(json['location'], {
+      'latitude': -6.2,
+      'longitude': 106.816666,
+      'source': 'gps',
+    });
+
+    final parsed = TransactionEntry.fromJson(json);
+    expect(parsed.location?.latitude, -6.2);
+    expect(parsed.location?.longitude, 106.816666);
+    expect(parsed.location?.source, TransactionLocationSource.gps);
+
+    final cleared = parsed.copyWith(clearLocation: true);
+    expect(cleared.location, isNull);
+    expect(cleared.toJson()['location'], isNull);
+  });
 }
