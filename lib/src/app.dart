@@ -10,6 +10,7 @@ import 'core/formatters.dart';
 import 'data/app_controller.dart';
 import 'domain/finance_calculator.dart';
 import 'domain/models.dart';
+import 'widgets/transaction_location_picker.dart';
 
 final appControllerProvider = ChangeNotifierProvider<AppController>((ref) {
   return AppController();
@@ -1867,7 +1868,7 @@ class TransactionTile extends StatelessWidget {
           icon: iconFor(category?.iconKey ?? 'uncategorized'),
           title: entry.name,
           subtitle:
-              '${category?.name ?? 'Tanpa kategori'} · ${formatDate(entry.date)}',
+              '${category?.name ?? 'Tanpa kategori'} · ${formatDate(entry.date)}${entry.location == null ? '' : ' · Ada lokasi'}',
           trailing: AmountText(amount: entry.amount, type: AmountType.expense),
           onTap: () => _showTransactionForm(context, controller, entry: entry),
         ),
@@ -2289,6 +2290,7 @@ void _showTransactionForm(
   final note = TextEditingController(text: entry?.note);
   var categoryId = entry?.categoryId ?? controller.expenseCategories.first.id;
   var date = entry?.date ?? DateTime.now();
+  var location = entry?.location;
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -2376,6 +2378,62 @@ void _showTransactionForm(
                   icon: const Icon(Icons.event),
                   label: Text(formatDate(date)),
                 ),
+                const SizedBox(height: 12),
+                InfoStrip(
+                  icon: location == null
+                      ? Icons.location_off_outlined
+                      : Icons.location_on_outlined,
+                  text: location == null
+                      ? 'Lokasi belum diset'
+                      : 'Lokasi: ${location!.latitude.toStringAsFixed(5)}, ${location!.longitude.toStringAsFixed(5)}',
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        try {
+                          final current =
+                              await controller.currentTransactionLocation();
+                          setState(() => location = current);
+                        } catch (error) {
+                          if (context.mounted) {
+                            _message(context, _cleanError(error));
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.my_location),
+                      label: const Text('Gunakan GPS'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await Navigator.of(
+                          context,
+                        ).push<TransactionLocation>(
+                          MaterialPageRoute(
+                            builder: (_) => TransactionLocationPicker(
+                              initialLocation: location,
+                            ),
+                          ),
+                        );
+                        if (picked != null) {
+                          setState(() => location = picked);
+                        }
+                      },
+                      icon: const Icon(Icons.map_outlined),
+                      label: const Text('Pilih di peta'),
+                    ),
+                    if (location != null)
+                      TextButton.icon(
+                        onPressed: () => setState(() => location = null),
+                        icon: const Icon(Icons.close),
+                        label: const Text('Hapus lokasi'),
+                      ),
+                  ],
+                ),
                 TextField(
                   controller: note,
                   minLines: 1,
@@ -2396,6 +2454,7 @@ void _showTransactionForm(
                         categoryId: categoryId,
                         date: date,
                         note: note.text,
+                        location: location,
                       );
                       final warning = controller.lastWarning;
                       controller.lastWarning = null;
