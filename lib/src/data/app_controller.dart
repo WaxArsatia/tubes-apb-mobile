@@ -71,6 +71,8 @@ class AppController extends ChangeNotifier {
     profile = await _persistence.readProfile();
     if (!config.mockMode && tokens != null) {
       await loadRemoteSnapshot();
+    } else {
+      await _hydrateLocalFinance();
     }
     initialized = true;
     notifyListeners();
@@ -391,6 +393,7 @@ class AppController extends ChangeNotifier {
             );
     }
     _upsertCategory(category);
+    await _persistLocalFinance();
     notifyListeners();
     return category;
   }
@@ -402,6 +405,7 @@ class AppController extends ChangeNotifier {
       return 0;
     }
     final affected = _softDeleteCategoryLocal(id);
+    await _persistLocalFinance();
     notifyListeners();
     return affected;
   }
@@ -425,6 +429,7 @@ class AppController extends ChangeNotifier {
         savings[i] = savings[i].copyWith(categoryId: id);
       }
     }
+    await _persistLocalFinance();
     notifyListeners();
   }
 
@@ -507,6 +512,7 @@ class AppController extends ChangeNotifier {
       );
     }
     _upsertTransaction(entry);
+    await _persistLocalFinance();
     final budget = category.monthlyBudget;
     if (budget != null &&
         calculator.categorySpending(categoryId, transactions, date) > budget) {
@@ -525,6 +531,7 @@ class AppController extends ChangeNotifier {
     final index = transactions.indexWhere((tx) => tx.id == id);
     if (index == -1) return;
     transactions[index] = transactions[index].copyWith(deleted: true);
+    await _persistLocalFinance();
     notifyListeners();
   }
 
@@ -537,6 +544,7 @@ class AppController extends ChangeNotifier {
     final index = transactions.indexWhere((tx) => tx.id == id);
     if (index == -1) return;
     transactions[index] = transactions[index].copyWith(deleted: false);
+    await _persistLocalFinance();
     notifyListeners();
   }
 
@@ -600,6 +608,7 @@ class AppController extends ChangeNotifier {
       );
     }
     _upsertSaving(entry);
+    await _persistLocalFinance();
     final target = category?.savingTarget;
     if (target != null &&
         calculator.savingProgress(category!.id, savings) > target) {
@@ -618,6 +627,7 @@ class AppController extends ChangeNotifier {
     final index = savings.indexWhere((item) => item.id == id);
     if (index == -1) return;
     savings[index] = savings[index].copyWith(deleted: true);
+    await _persistLocalFinance();
     notifyListeners();
   }
 
@@ -630,6 +640,7 @@ class AppController extends ChangeNotifier {
     final index = savings.indexWhere((item) => item.id == id);
     if (index == -1) return;
     savings[index] = savings[index].copyWith(deleted: false);
+    await _persistLocalFinance();
     notifyListeners();
   }
 
@@ -651,6 +662,34 @@ class AppController extends ChangeNotifier {
         first['message'] as String? ?? 'Ada peringatan budget',
       );
     }
+  }
+
+  Future<void> _hydrateLocalFinance() async {
+    final storedCategories = await _persistence.readCategories();
+    final storedTransactions = await _persistence.readTransactions();
+    final storedSavings = await _persistence.readSavings();
+    if (storedCategories != null) {
+      categories
+        ..clear()
+        ..addAll(storedCategories);
+    }
+    if (storedTransactions != null) {
+      transactions
+        ..clear()
+        ..addAll(storedTransactions);
+    }
+    if (storedSavings != null) {
+      savings
+        ..clear()
+        ..addAll(storedSavings);
+    }
+  }
+
+  Future<void> _persistLocalFinance() async {
+    if (!config.mockMode) return;
+    await _persistence.writeCategories(categories);
+    await _persistence.writeTransactions(transactions);
+    await _persistence.writeSavings(savings);
   }
 
   String _dateOnly(DateTime date) => date.toIso8601String().substring(0, 10);

@@ -221,6 +221,52 @@ void main() {
     expect(location.longitude, 106.816666);
     expect(location.source, TransactionLocationSource.gps);
   });
+
+  test('mock finance entries survive controller reinitialization', () async {
+    final persistence = MemoryPersistenceService();
+    final controller = AppController(
+      persistence: persistence,
+      notifications: RecordingNotificationGateway(),
+      imagePicker: FixedImagePickerGateway(null),
+    );
+    await controller.updateConfig(
+      const AppConfig(apiBaseUrl: AppConfig.defaultApiBaseUrl, mockMode: true),
+    );
+
+    await controller.saveTransaction(
+      name: 'Kopi',
+      amount: 18000,
+      categoryId: 'cat-food',
+      date: DateTime(2026, 4, 10),
+    );
+    await controller.saveSaving(
+      type: SavingType.generalIncome,
+      name: 'Freelance',
+      amount: 250000,
+      date: DateTime(2026, 4, 11),
+    );
+    await controller.saveSaving(
+      type: SavingType.saving,
+      name: 'Dana darurat ekstra',
+      amount: 50000,
+      categoryId: 'cat-emergency',
+      date: DateTime(2026, 4, 12),
+    );
+
+    final restored = AppController(
+      persistence: persistence,
+      notifications: RecordingNotificationGateway(),
+      imagePicker: FixedImagePickerGateway(null),
+    );
+    await restored.initialize();
+
+    expect(restored.transactions.any((tx) => tx.name == 'Kopi'), isTrue);
+    expect(restored.savings.any((item) => item.name == 'Freelance'), isTrue);
+    expect(
+      restored.savings.any((item) => item.name == 'Dana darurat ekstra'),
+      isTrue,
+    );
+  });
 }
 
 class RecordingApiClient extends ApiClient {

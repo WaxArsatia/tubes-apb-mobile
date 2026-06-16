@@ -793,12 +793,13 @@ class TransactionScreen extends ConsumerStatefulWidget {
 }
 
 class _TransactionScreenState extends ConsumerState<TransactionScreen> {
-  DateTime? month = DateTime.now();
+  DateTime? month = _monthStart(DateTime.now());
   String? categoryId;
 
   @override
   Widget build(BuildContext context) {
     final controller = ref.watch(appControllerProvider);
+    final monthOptions = _transactionMonthOptions(controller.activeTransactions);
     var list = controller.activeTransactions;
     if (month != null) {
       list = list
@@ -840,12 +841,24 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
                   categoryId = null;
                 }),
               ),
-              FilterChip(
-                label: Text(month == null ? 'Per Bulan' : formatMonth(month!)),
-                selected: month != null,
-                onSelected: (_) => setState(
-                  () => month = month == null ? DateTime.now() : null,
-                ),
+              DropdownMenu<DateTime?>(
+                key: ValueKey(month?.toIso8601String() ?? 'all-months'),
+                width: 220,
+                label: const Text('Bulan'),
+                initialSelection: month,
+                dropdownMenuEntries: [
+                  const DropdownMenuEntry<DateTime?>(
+                    value: null,
+                    label: 'Semua bulan',
+                  ),
+                  ...monthOptions.map(
+                    (value) => DropdownMenuEntry<DateTime?>(
+                      value: value,
+                      label: formatMonth(value),
+                    ),
+                  ),
+                ],
+                onSelected: (value) => setState(() => month = value),
               ),
               DropdownMenu<String?>(
                 width: 220,
@@ -886,7 +899,17 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
       ),
     );
   }
+
+  List<DateTime> _transactionMonthOptions(List<TransactionEntry> entries) {
+    final months = <DateTime>{_monthStart(DateTime.now())};
+    for (final entry in entries) {
+      months.add(_monthStart(entry.date));
+    }
+    return months.toList()..sort((a, b) => b.compareTo(a));
+  }
 }
+
+DateTime _monthStart(DateTime value) => DateTime(value.year, value.month);
 
 class SavingScreen extends ConsumerStatefulWidget {
   const SavingScreen({super.key});
@@ -2163,13 +2186,11 @@ void _showCategoryForm(
   Category? category,
 }) {
   final name = TextEditingController(text: category?.name);
+  final currentNominal = type == CategoryType.expense
+      ? category?.monthlyBudget
+      : category?.savingTarget;
   final nominal = TextEditingController(
-    text:
-        (type == CategoryType.expense
-                ? category?.monthlyBudget
-                : category?.savingTarget)
-            ?.toString() ??
-        '',
+    text: currentNominal == null ? '' : formatNominalInput(currentNominal),
   );
   var iconKey =
       category?.iconKey ??
@@ -2227,6 +2248,7 @@ void _showCategoryForm(
                 enabled:
                     type == CategoryType.saving || controller.hasGeneralIncome,
                 keyboardType: TextInputType.number,
+                inputFormatters: [ThousandsSeparatorInputFormatter()],
                 decoration: InputDecoration(
                   labelText: type == CategoryType.expense
                       ? 'Budget bulanan'
@@ -2249,10 +2271,10 @@ void _showCategoryForm(
                       name: name.text,
                       iconKey: iconKey,
                       monthlyBudget: type == CategoryType.expense
-                          ? int.tryParse(nominal.text)
+                          ? _optionalNominal(nominal.text)
                           : null,
                       savingTarget: type == CategoryType.saving
-                          ? int.tryParse(nominal.text)
+                          ? _optionalNominal(nominal.text)
                           : null,
                     );
                     if (context.mounted) Navigator.pop(context);
@@ -2286,7 +2308,9 @@ void _showTransactionForm(
   TransactionEntry? entry,
 }) {
   final name = TextEditingController(text: entry?.name);
-  final amount = TextEditingController(text: entry?.amount.toString() ?? '');
+  final amount = TextEditingController(
+    text: entry?.amount == null ? '' : formatNominalInput(entry!.amount),
+  );
   final note = TextEditingController(text: entry?.note);
   var categoryId = entry?.categoryId ?? controller.expenseCategories.first.id;
   var date = entry?.date ?? DateTime.now();
@@ -2336,10 +2360,11 @@ void _showTransactionForm(
                 TextField(
                   controller: amount,
                   keyboardType: TextInputType.number,
+                  inputFormatters: [ThousandsSeparatorInputFormatter()],
                   decoration: const InputDecoration(
                     labelText: 'Nominal',
                     prefixText: 'Rp ',
-                    helperText: 'Isi angka tanpa titik atau koma.',
+                    helperText: 'Nominal otomatis diformat dengan titik.',
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -2450,7 +2475,7 @@ void _showTransactionForm(
                       await controller.saveTransaction(
                         id: entry?.id,
                         name: name.text,
-                        amount: int.parse(amount.text),
+                        amount: parseNominalInput(amount.text),
                         categoryId: categoryId,
                         date: date,
                         note: note.text,
@@ -2496,7 +2521,9 @@ void _showSavingForm(
   SavingType? initialType,
 }) {
   final name = TextEditingController(text: entry?.name);
-  final amount = TextEditingController(text: entry?.amount.toString() ?? '');
+  final amount = TextEditingController(
+    text: entry?.amount == null ? '' : formatNominalInput(entry!.amount),
+  );
   final note = TextEditingController(text: entry?.note);
   var type = entry?.type ?? initialType ?? SavingType.generalIncome;
   var categoryId =
@@ -2555,10 +2582,11 @@ void _showSavingForm(
               TextField(
                 controller: amount,
                 keyboardType: TextInputType.number,
+                inputFormatters: [ThousandsSeparatorInputFormatter()],
                 decoration: const InputDecoration(
                   labelText: 'Nominal',
                   prefixText: 'Rp ',
-                  helperText: 'Isi angka tanpa titik atau koma.',
+                  helperText: 'Nominal otomatis diformat dengan titik.',
                 ),
               ),
               if (type == SavingType.saving) ...[
@@ -2607,7 +2635,7 @@ void _showSavingForm(
                       id: entry?.id,
                       type: type,
                       name: name.text,
-                      amount: int.parse(amount.text),
+                      amount: parseNominalInput(amount.text),
                       categoryId: categoryId,
                       date: date,
                       note: note.text,
@@ -2647,4 +2675,10 @@ extension FirstOrNull<T> on Iterable<T> {
     final iterator = this.iterator;
     return iterator.moveNext() ? iterator.current : null;
   }
+}
+
+int? _optionalNominal(String value) {
+  final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+  if (digits.isEmpty) return null;
+  return int.parse(digits);
 }

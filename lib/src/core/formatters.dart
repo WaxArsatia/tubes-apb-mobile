@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 final _idr = NumberFormat.currency(
@@ -7,6 +8,31 @@ final _idr = NumberFormat.currency(
 );
 
 String formatIdr(int value) => _idr.format(value);
+
+String formatNominalInput(int value) =>
+    NumberFormat.decimalPattern('id_ID').format(value);
+
+int parseNominalInput(String value) {
+  final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+  if (digits.isEmpty) return 0;
+  return int.parse(digits);
+}
+
+class ThousandsSeparatorInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return TextEditingValue.empty;
+    final formatted = formatNominalInput(int.parse(digits));
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
 
 String formatDate(DateTime value) =>
     DateFormat('d MMM yyyy', 'id_ID').format(value);

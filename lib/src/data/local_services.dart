@@ -18,6 +18,12 @@ abstract class PersistenceService {
   Future<void> clearProfile();
   Future<AppConfig?> readConfig();
   Future<void> writeConfig(AppConfig config);
+  Future<List<Category>?> readCategories();
+  Future<void> writeCategories(List<Category> categories);
+  Future<List<TransactionEntry>?> readTransactions();
+  Future<void> writeTransactions(List<TransactionEntry> transactions);
+  Future<List<SavingEntry>?> readSavings();
+  Future<void> writeSavings(List<SavingEntry> savings);
 }
 
 class LocalPersistenceService implements PersistenceService {
@@ -34,6 +40,9 @@ class LocalPersistenceService implements PersistenceService {
   static const _accessTokenKey = 'finu_access_token';
   static const _refreshTokenKey = 'finu_refresh_token';
   static const _profileKey = 'finu_profile';
+  static const _categoriesKey = 'finu_categories';
+  static const _transactionsKey = 'finu_transactions';
+  static const _savingsKey = 'finu_savings';
   static const _apiBaseUrlKey = 'finu_api_base_url';
   static const _mockModeKey = 'finu_mock_mode';
 
@@ -96,12 +105,69 @@ class LocalPersistenceService implements PersistenceService {
     await _preferences.setString(_apiBaseUrlKey, config.apiBaseUrl);
     await _preferences.setBool(_mockModeKey, config.mockMode);
   }
+
+  @override
+  Future<List<Category>?> readCategories() async {
+    final raw = await _preferences.getString(_categoriesKey);
+    if (raw == null) return null;
+    return (jsonDecode(raw) as List)
+        .cast<Map<String, dynamic>>()
+        .map(Category.fromJson)
+        .toList();
+  }
+
+  @override
+  Future<void> writeCategories(List<Category> categories) async {
+    await _preferences.setString(
+      _categoriesKey,
+      jsonEncode(categories.map((item) => item.toJson()).toList()),
+    );
+  }
+
+  @override
+  Future<List<TransactionEntry>?> readTransactions() async {
+    final raw = await _preferences.getString(_transactionsKey);
+    if (raw == null) return null;
+    return (jsonDecode(raw) as List)
+        .cast<Map<String, dynamic>>()
+        .map(TransactionEntry.fromJson)
+        .toList();
+  }
+
+  @override
+  Future<void> writeTransactions(List<TransactionEntry> transactions) async {
+    await _preferences.setString(
+      _transactionsKey,
+      jsonEncode(transactions.map((item) => item.toJson()).toList()),
+    );
+  }
+
+  @override
+  Future<List<SavingEntry>?> readSavings() async {
+    final raw = await _preferences.getString(_savingsKey);
+    if (raw == null) return null;
+    return (jsonDecode(raw) as List)
+        .cast<Map<String, dynamic>>()
+        .map(SavingEntry.fromJson)
+        .toList();
+  }
+
+  @override
+  Future<void> writeSavings(List<SavingEntry> savings) async {
+    await _preferences.setString(
+      _savingsKey,
+      jsonEncode(savings.map((item) => item.toJson()).toList()),
+    );
+  }
 }
 
 class MemoryPersistenceService implements PersistenceService {
   AuthTokens? storedTokens;
   UserProfile? storedProfile;
   AppConfig? storedConfig;
+  List<Category>? storedCategories;
+  List<TransactionEntry>? storedTransactions;
+  List<SavingEntry>? storedSavings;
 
   @override
   Future<void> clearProfile() async {
@@ -125,6 +191,31 @@ class MemoryPersistenceService implements PersistenceService {
   @override
   Future<void> writeConfig(AppConfig config) async {
     storedConfig = config;
+  }
+
+  @override
+  Future<List<Category>?> readCategories() async => storedCategories;
+
+  @override
+  Future<void> writeCategories(List<Category> categories) async {
+    storedCategories = List.of(categories);
+  }
+
+  @override
+  Future<List<TransactionEntry>?> readTransactions() async =>
+      storedTransactions;
+
+  @override
+  Future<void> writeTransactions(List<TransactionEntry> transactions) async {
+    storedTransactions = List.of(transactions);
+  }
+
+  @override
+  Future<List<SavingEntry>?> readSavings() async => storedSavings;
+
+  @override
+  Future<void> writeSavings(List<SavingEntry> savings) async {
+    storedSavings = List.of(savings);
   }
 
   @override
