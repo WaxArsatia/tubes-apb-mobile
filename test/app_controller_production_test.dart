@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tubes_apb_mobile/src/data/api_client.dart';
 import 'package:tubes_apb_mobile/src/data/app_controller.dart';
 import 'package:tubes_apb_mobile/src/data/local_services.dart';
 import 'package:tubes_apb_mobile/src/domain/models.dart';
@@ -132,4 +133,96 @@ void main() {
     expect(controller.profile?.profilePhotoUrl, '/tmp/profile.png');
     expect(persistence.storedProfile?.profilePhotoUrl, '/tmp/profile.png');
   });
+
+  test('saveTransaction sends location to production API', () async {
+    final api = RecordingApiClient(
+      baseUrl: 'https://api.finu.test',
+      responses: {
+        '/transactions': {
+          'data': {
+            'id': 'tx-location',
+            'name': 'Lunch',
+            'amount': 35000,
+            'categoryId': 'cat-food',
+            'date': '2026-04-10',
+            'note': null,
+            'location': {
+              'latitude': -6.2,
+              'longitude': 106.816666,
+              'source': 'gps',
+            },
+          },
+        },
+      },
+    );
+    final controller = AppController(
+      persistence: MemoryPersistenceService(),
+      notifications: RecordingNotificationGateway(),
+      imagePicker: FixedImagePickerGateway(null),
+      apiClient: api,
+    );
+    await controller.updateConfig(
+      const AppConfig(apiBaseUrl: 'https://api.finu.test', mockMode: false),
+    );
+    controller.tokens = const AuthTokens(
+      accessToken: 'access',
+      refreshToken: 'refresh',
+    );
+    controller.profile = const UserProfile(
+      id: 'user-1',
+      name: 'Alya',
+      email: 'alya@example.com',
+    );
+    controller.categories.add(
+      const Category(
+        id: 'cat-food',
+        type: CategoryType.expense,
+        name: 'Food',
+        iconKey: 'food',
+      ),
+    );
+
+    await controller.saveTransaction(
+      name: 'Lunch',
+      amount: 35000,
+      categoryId: 'cat-food',
+      date: DateTime(2026, 4, 10),
+      location: const TransactionLocation(
+        latitude: -6.2,
+        longitude: 106.816666,
+        source: TransactionLocationSource.gps,
+      ),
+    );
+
+    expect(api.lastJsonBody?['location'], {
+      'latitude': -6.2,
+      'longitude': 106.816666,
+      'source': 'gps',
+    });
+  });
+}
+
+class RecordingApiClient extends ApiClient {
+  RecordingApiClient({required super.baseUrl, required this.responses});
+
+  final Map<String, Map<String, dynamic>> responses;
+  Map<String, dynamic>? lastJsonBody;
+
+  @override
+  Future<Map<String, dynamic>> postJson(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    lastJsonBody = body;
+    return responses[path] ?? <String, dynamic>{};
+  }
+
+  @override
+  Future<Map<String, dynamic>> patchJson(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    lastJsonBody = body;
+    return responses[path] ?? <String, dynamic>{};
+  }
 }

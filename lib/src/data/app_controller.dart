@@ -464,6 +464,7 @@ class AppController extends ChangeNotifier {
     required String categoryId,
     required DateTime date,
     String? note,
+    TransactionLocation? location,
   }) async {
     if (amount <= 0) throw ArgumentError('Amount harus positif');
     if (date.isAfter(DateTime.now())) {
@@ -478,6 +479,7 @@ class AppController extends ChangeNotifier {
       'categoryId': categoryId,
       'date': _dateOnly(date),
       'note': note,
+      'location': location?.toJson(),
     };
     TransactionEntry entry;
     if (!config.mockMode) {
@@ -494,6 +496,7 @@ class AppController extends ChangeNotifier {
         categoryId: categoryId,
         date: DateTime(date.year, date.month, date.day),
         note: note,
+        location: location,
       );
     }
     _upsertTransaction(entry);
@@ -719,6 +722,11 @@ class AppController extends ChangeNotifier {
         amount: 35000,
         categoryId: 'cat-food',
         date: DateTime(now.year, now.month, min(now.day, 6)),
+        location: const TransactionLocation(
+          latitude: -6.2,
+          longitude: 106.816666,
+          source: TransactionLocationSource.manual,
+        ),
       ),
       TransactionEntry(
         id: 'tx-bus',
