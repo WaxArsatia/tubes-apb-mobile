@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -262,4 +263,49 @@ class FixedImagePickerGateway implements ImagePickerGateway {
 
   @override
   Future<String?> pickProfilePhotoPath() async => path;
+}
+
+abstract class LocationGateway {
+  Future<TransactionLocation> currentTransactionLocation();
+}
+
+class DeviceLocationGateway implements LocationGateway {
+  @override
+  Future<TransactionLocation> currentTransactionLocation() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      throw ArgumentError('Layanan lokasi belum aktif');
+    }
+
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied) {
+      throw ArgumentError('Izin lokasi ditolak');
+    }
+    if (permission == LocationPermission.deniedForever) {
+      throw ArgumentError('Izin lokasi ditolak permanen');
+    }
+
+    final position = await Geolocator.getCurrentPosition();
+    return TransactionLocation(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      source: TransactionLocationSource.gps,
+    );
+  }
+}
+
+class FixedLocationGateway implements LocationGateway {
+  FixedLocationGateway(this.location);
+
+  final TransactionLocation? location;
+
+  @override
+  Future<TransactionLocation> currentTransactionLocation() async {
+    final value = location;
+    if (value == null) throw ArgumentError('Lokasi tidak tersedia');
+    return value;
+  }
 }

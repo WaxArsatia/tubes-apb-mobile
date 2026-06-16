@@ -12,10 +12,12 @@ class AppController extends ChangeNotifier {
     PersistenceService? persistence,
     NotificationGateway? notifications,
     ImagePickerGateway? imagePicker,
+    LocationGateway? locationGateway,
     ApiClient? apiClient,
   }) : _persistence = persistence ?? LocalPersistenceService(),
        _notifications = notifications ?? LocalNotificationGateway(),
        _imagePicker = imagePicker ?? GalleryImagePickerGateway(),
+       _locationGateway = locationGateway ?? DeviceLocationGateway(),
        _apiClientOverride = apiClient {
     _seed();
   }
@@ -24,6 +26,7 @@ class AppController extends ChangeNotifier {
   final PersistenceService _persistence;
   final NotificationGateway _notifications;
   final ImagePickerGateway _imagePicker;
+  final LocationGateway _locationGateway;
   final ApiClient? _apiClientOverride;
 
   UserProfile? profile;
@@ -212,6 +215,10 @@ class AppController extends ChangeNotifier {
     }
     if (profile != null) await _persistence.writeProfile(profile!);
     notifyListeners();
+  }
+
+  Future<TransactionLocation> currentTransactionLocation() async {
+    return _locationGateway.currentTransactionLocation();
   }
 
   Future<void> updateNotification(bool enabled) async {

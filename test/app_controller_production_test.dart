@@ -200,6 +200,27 @@ void main() {
       'source': 'gps',
     });
   });
+
+  test('currentTransactionLocation delegates to injected gateway', () async {
+    final controller = AppController(
+      persistence: MemoryPersistenceService(),
+      notifications: RecordingNotificationGateway(),
+      imagePicker: FixedImagePickerGateway(null),
+      locationGateway: FixedLocationGateway(
+        const TransactionLocation(
+          latitude: -6.2,
+          longitude: 106.816666,
+          source: TransactionLocationSource.gps,
+        ),
+      ),
+    );
+
+    final location = await controller.currentTransactionLocation();
+
+    expect(location.latitude, -6.2);
+    expect(location.longitude, 106.816666);
+    expect(location.source, TransactionLocationSource.gps);
+  });
 }
 
 class RecordingApiClient extends ApiClient {
