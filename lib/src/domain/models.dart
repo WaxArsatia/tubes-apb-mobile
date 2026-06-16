@@ -312,19 +312,12 @@ class SavingEntry {
 }
 
 class AppConfig {
-  const AppConfig({required this.apiBaseUrl, required this.mockMode});
+  const AppConfig({String? apiBaseUrl});
 
   static const defaultApiBaseUrl = 'https://apb-api.denis.my.id';
-  static const defaultConfig = AppConfig(
-    apiBaseUrl: defaultApiBaseUrl,
-    mockMode: false,
-  );
+  static const defaultConfig = AppConfig();
 
-  final String apiBaseUrl;
-  final bool mockMode;
+  String get apiBaseUrl => defaultApiBaseUrl;
 
-  AppConfig copyWith({String? apiBaseUrl, bool? mockMode}) => AppConfig(
-    apiBaseUrl: apiBaseUrl ?? this.apiBaseUrl,
-    mockMode: mockMode ?? this.mockMode,
-  );
+  AppConfig copyWith({String? apiBaseUrl}) => AppConfig.defaultConfig;
 }

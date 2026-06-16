@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 
 import 'api_client.dart';
@@ -18,9 +16,7 @@ class AppController extends ChangeNotifier {
        _notifications = notifications ?? LocalNotificationGateway(),
        _imagePicker = imagePicker ?? GalleryImagePickerGateway(),
        _locationGateway = locationGateway ?? DeviceLocationGateway(),
-       _apiClientOverride = apiClient {
-    _seed();
-  }
+       _apiClientOverride = apiClient;
 
   final calculator = const FinanceCalculator();
   final PersistenceService _persistence;
@@ -69,7 +65,7 @@ class AppController extends ChangeNotifier {
     config = await _persistence.readConfig() ?? config;
     tokens = await _persistence.readTokens();
     profile = await _persistence.readProfile();
-    if (!config.mockMode && tokens != null) {
+    if (tokens != null) {
       await loadRemoteSnapshot();
     } else {
       await _hydrateLocalFinance();
@@ -82,29 +78,12 @@ class AppController extends ChangeNotifier {
     _validateEmail(email);
     if (password.length < 8) throw ArgumentError('Password minimal 8 karakter');
     await _busy(() async {
-      if (config.mockMode) {
-        if (email == 'salah@example.com') {
-          throw ArgumentError('Email atau password salah');
-        }
-        profile = UserProfile(
-          id: 'user-1',
-          name: email.split('@').first == 'demo'
-              ? 'Alya Finu'
-              : email.split('@').first,
-          email: email,
-        );
-        tokens = const AuthTokens(
-          accessToken: 'mock-access',
-          refreshToken: 'mock-refresh',
-        );
-      } else {
-        final envelope = await _api().postJson('/auth/login', {
-          'email': email,
-          'password': password,
-        });
-        _applyAuthEnvelope(envelope);
-        await loadRemoteSnapshot();
-      }
+      final envelope = await _api().postJson('/auth/login', {
+        'email': email,
+        'password': password,
+      });
+      _applyAuthEnvelope(envelope);
+      await loadRemoteSnapshot();
       await _persistSession();
     });
   }
@@ -122,21 +101,13 @@ class AppController extends ChangeNotifier {
       throw ArgumentError('Konfirmasi password tidak sama');
     }
     await _busy(() async {
-      if (config.mockMode) {
-        profile = UserProfile(id: 'user-1', name: name.trim(), email: email);
-        tokens = const AuthTokens(
-          accessToken: 'mock-access',
-          refreshToken: 'mock-refresh',
-        );
-      } else {
-        final envelope = await _api().postJson('/auth/register', {
-          'name': name.trim(),
-          'email': email,
-          'password': password,
-        });
-        _applyAuthEnvelope(envelope);
-        await loadRemoteSnapshot();
-      }
+      final envelope = await _api().postJson('/auth/register', {
+        'name': name.trim(),
+        'email': email,
+        'password': password,
+      });
+      _applyAuthEnvelope(envelope);
+      await loadRemoteSnapshot();
       await _persistSession();
     });
   }
@@ -144,9 +115,7 @@ class AppController extends ChangeNotifier {
   Future<void> forgotPassword(String email) async {
     _validateEmail(email);
     await _busy(() async {
-      if (!config.mockMode) {
-        await _api().postJson('/auth/forgot-password', {'email': email});
-      }
+      await _api().postJson('/auth/forgot-password', {'email': email});
     });
   }
 
@@ -157,18 +126,16 @@ class AppController extends ChangeNotifier {
     }
     if (password.length < 8) throw ArgumentError('Password minimal 8 karakter');
     await _busy(() async {
-      if (!config.mockMode) {
-        await _api().postJson('/auth/reset-password', {
-          'email': email,
-          'code': code,
-          'password': password,
-        });
-      }
+      await _api().postJson('/auth/reset-password', {
+        'email': email,
+        'code': code,
+        'password': password,
+      });
     });
   }
 
   Future<void> logout() async {
-    if (!config.mockMode && tokens != null) {
+    if (tokens != null) {
       try {
         await _api().postJson('/auth/logout', {
           'refreshToken': tokens!.refreshToken,
@@ -186,19 +153,16 @@ class AppController extends ChangeNotifier {
 
   Future<void> updateProfile(String name, {String? photoPath}) async {
     if (name.trim().isEmpty) throw ArgumentError('Nama wajib diisi');
-    if (!config.mockMode) {
-      final envelope = await _api().patchJson('/profile', {
-        'name': name.trim(),
-      });
-      final data = _data(envelope);
-      if (data.isNotEmpty) {
-        profile = UserProfile.fromJson(data);
-        await _persistence.writeProfile(profile!);
-        notifyListeners();
-        return;
-      }
+    final envelope = await _api().patchJson('/profile', {'name': name.trim()});
+    final data = _data(envelope);
+    if (data.isNotEmpty) {
+      profile = UserProfile.fromJson(data);
+    } else {
+      profile = profile?.copyWith(
+        name: name.trim(),
+        profilePhotoUrl: photoPath,
+      );
     }
-    profile = profile?.copyWith(name: name.trim(), profilePhotoUrl: photoPath);
     if (profile != null) await _persistence.writeProfile(profile!);
     notifyListeners();
   }
@@ -206,15 +170,11 @@ class AppController extends ChangeNotifier {
   Future<void> pickAndUploadProfilePhoto() async {
     final path = await _imagePicker.pickProfilePhotoPath();
     if (path == null) return;
-    if (config.mockMode) {
-      profile = profile?.copyWith(profilePhotoUrl: path);
-    } else {
-      final envelope = await _api().uploadProfilePhoto(path);
-      final data = _data(envelope);
-      profile = data.isEmpty
-          ? profile?.copyWith(profilePhotoUrl: path)
-          : UserProfile.fromJson(data);
-    }
+    final envelope = await _api().uploadProfilePhoto(path);
+    final data = _data(envelope);
+    profile = data.isEmpty
+        ? profile?.copyWith(profilePhotoUrl: path)
+        : UserProfile.fromJson(data);
     if (profile != null) await _persistence.writeProfile(profile!);
     notifyListeners();
   }
@@ -224,14 +184,12 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> updateNotification(bool enabled) async {
-    if (!config.mockMode) {
-      final envelope = await _api().patchJson('/settings/notifications', {
-        'budgetNotificationEnabled': enabled,
-      });
-      final data = _data(envelope);
-      if (data.isNotEmpty) {
-        profile = UserProfile.fromJson(data);
-      }
+    final envelope = await _api().patchJson('/settings/notifications', {
+      'budgetNotificationEnabled': enabled,
+    });
+    final data = _data(envelope);
+    if (data.isNotEmpty) {
+      profile = UserProfile.fromJson(data);
     } else {
       profile = profile?.copyWith(budgetNotificationEnabled: enabled);
     }
@@ -241,13 +199,13 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> updateConfig(AppConfig next) async {
-    config = next;
-    await _persistence.writeConfig(next);
+    config = AppConfig.defaultConfig;
+    await _persistence.writeConfig(config);
     notifyListeners();
   }
 
   Future<void> loadRemoteSnapshot() async {
-    if (config.mockMode || tokens == null) return;
+    if (tokens == null) return;
     final api = _api();
     final profileEnvelope = await api.getJson('/profile');
     final expenseEnvelope = await api.getJson('/categories?type=expense');
@@ -361,76 +319,24 @@ class AppController extends ChangeNotifier {
       'monthlyBudget': type == CategoryType.expense ? monthlyBudget : null,
       'savingTarget': type == CategoryType.saving ? savingTarget : null,
     };
-    Category category;
-    if (!config.mockMode) {
-      final envelope = id == null
-          ? await _api().postJson('/categories', body)
-          : await _api().patchJson('/categories/$id', body);
-      category = Category.fromJson(_data(envelope));
-    } else {
-      final existing = id == null ? null : _categoryById(id);
-      category = existing == null
-          ? Category(
-              id: _id('cat'),
-              type: type,
-              name: trimmed,
-              iconKey: iconKey,
-              monthlyBudget: type == CategoryType.expense
-                  ? monthlyBudget
-                  : null,
-              savingTarget: type == CategoryType.saving ? savingTarget : null,
-            )
-          : existing.copyWith(
-              name: trimmed,
-              iconKey: iconKey,
-              monthlyBudget: type == CategoryType.expense
-                  ? monthlyBudget
-                  : null,
-              savingTarget: type == CategoryType.saving ? savingTarget : null,
-              clearBudget:
-                  type == CategoryType.expense && monthlyBudget == null,
-              clearTarget: type == CategoryType.saving && savingTarget == null,
-            );
-    }
+    final envelope = id == null
+        ? await _api().postJson('/categories', body)
+        : await _api().patchJson('/categories/$id', body);
+    final category = Category.fromJson(_data(envelope));
     _upsertCategory(category);
-    await _persistLocalFinance();
     notifyListeners();
     return category;
   }
 
   Future<int> softDeleteCategory(String id) async {
-    if (!config.mockMode) {
-      await _api().deleteJson('/categories/$id');
-      await loadRemoteSnapshot();
-      return 0;
-    }
-    final affected = _softDeleteCategoryLocal(id);
-    await _persistLocalFinance();
-    notifyListeners();
-    return affected;
+    await _api().deleteJson('/categories/$id');
+    await loadRemoteSnapshot();
+    return 0;
   }
 
   Future<void> restoreCategory(String id) async {
-    if (!config.mockMode) {
-      await _api().postJson('/categories/$id/restore', {});
-      await loadRemoteSnapshot();
-      return;
-    }
-    final index = categories.indexWhere((cat) => cat.id == id);
-    if (index == -1) return;
-    categories[index] = categories[index].copyWith(deleted: false);
-    for (var i = 0; i < transactions.length; i++) {
-      if (transactions[i].previousCategoryId == id) {
-        transactions[i] = transactions[i].copyWith(categoryId: id);
-      }
-    }
-    for (var i = 0; i < savings.length; i++) {
-      if (savings[i].previousCategoryId == id) {
-        savings[i] = savings[i].copyWith(categoryId: id);
-      }
-    }
-    await _persistLocalFinance();
-    notifyListeners();
+    await _api().postJson('/categories/$id/restore', {});
+    await loadRemoteSnapshot();
   }
 
   void _upsertCategory(Category category) {
@@ -440,33 +346,6 @@ class AppController extends ChangeNotifier {
     } else {
       categories[index] = category;
     }
-  }
-
-  int _softDeleteCategoryLocal(String id) {
-    final index = categories.indexWhere((cat) => cat.id == id);
-    if (index == -1) return 0;
-    final category = categories[index];
-    categories[index] = category.copyWith(deleted: true);
-    var affected = 0;
-    for (var i = 0; i < transactions.length; i++) {
-      if (transactions[i].categoryId == id) {
-        transactions[i] = transactions[i].copyWith(
-          clearCategory: true,
-          previousCategoryId: id,
-        );
-        affected++;
-      }
-    }
-    for (var i = 0; i < savings.length; i++) {
-      if (savings[i].categoryId == id) {
-        savings[i] = savings[i].copyWith(
-          clearCategory: true,
-          previousCategoryId: id,
-        );
-        affected++;
-      }
-    }
-    return affected;
   }
 
   Future<TransactionEntry> saveTransaction({
@@ -493,26 +372,12 @@ class AppController extends ChangeNotifier {
       'note': note,
       'location': location?.toJson(),
     };
-    TransactionEntry entry;
-    if (!config.mockMode) {
-      final envelope = id == null
-          ? await _api().postJson('/transactions', body)
-          : await _api().patchJson('/transactions/$id', body);
-      entry = TransactionEntry.fromJson(_data(envelope));
-      _applyWarnings(envelope);
-    } else {
-      entry = TransactionEntry(
-        id: id ?? _id('tx'),
-        name: name?.trim().isNotEmpty == true ? name!.trim() : category.name,
-        amount: amount,
-        categoryId: categoryId,
-        date: DateTime(date.year, date.month, date.day),
-        note: note,
-        location: location,
-      );
-    }
+    final envelope = id == null
+        ? await _api().postJson('/transactions', body)
+        : await _api().patchJson('/transactions/$id', body);
+    final entry = TransactionEntry.fromJson(_data(envelope));
+    _applyWarnings(envelope);
     _upsertTransaction(entry);
-    await _persistLocalFinance();
     final budget = category.monthlyBudget;
     if (budget != null &&
         calculator.categorySpending(categoryId, transactions, date) > budget) {
@@ -523,29 +388,13 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> softDeleteTransaction(String id) async {
-    if (!config.mockMode) {
-      await _api().deleteJson('/transactions/$id');
-      await loadRemoteSnapshot();
-      return;
-    }
-    final index = transactions.indexWhere((tx) => tx.id == id);
-    if (index == -1) return;
-    transactions[index] = transactions[index].copyWith(deleted: true);
-    await _persistLocalFinance();
-    notifyListeners();
+    await _api().deleteJson('/transactions/$id');
+    await loadRemoteSnapshot();
   }
 
   Future<void> restoreTransaction(String id) async {
-    if (!config.mockMode) {
-      await _api().postJson('/transactions/$id/restore', {});
-      await loadRemoteSnapshot();
-      return;
-    }
-    final index = transactions.indexWhere((tx) => tx.id == id);
-    if (index == -1) return;
-    transactions[index] = transactions[index].copyWith(deleted: false);
-    await _persistLocalFinance();
-    notifyListeners();
+    await _api().postJson('/transactions/$id/restore', {});
+    await loadRemoteSnapshot();
   }
 
   void _upsertTransaction(TransactionEntry entry) {
@@ -585,30 +434,12 @@ class AppController extends ChangeNotifier {
       'categoryId': type == SavingType.saving ? categoryId : null,
       'note': note,
     };
-    SavingEntry entry;
-    if (!config.mockMode) {
-      final envelope = id == null
-          ? await _api().postJson('/savings', body)
-          : await _api().patchJson('/savings/$id', body);
-      entry = SavingEntry.fromJson(_data(envelope));
-      _applyWarnings(envelope);
-    } else {
-      entry = SavingEntry(
-        id: id ?? _id('sav'),
-        type: type,
-        name: name?.trim().isNotEmpty == true
-            ? name!.trim()
-            : type == SavingType.saving
-            ? category!.name
-            : 'Pemasukan Umum',
-        amount: amount,
-        date: DateTime(date.year, date.month, date.day),
-        categoryId: type == SavingType.saving ? categoryId : null,
-        note: note,
-      );
-    }
+    final envelope = id == null
+        ? await _api().postJson('/savings', body)
+        : await _api().patchJson('/savings/$id', body);
+    final entry = SavingEntry.fromJson(_data(envelope));
+    _applyWarnings(envelope);
     _upsertSaving(entry);
-    await _persistLocalFinance();
     final target = category?.savingTarget;
     if (target != null &&
         calculator.savingProgress(category!.id, savings) > target) {
@@ -619,29 +450,13 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> softDeleteSaving(String id) async {
-    if (!config.mockMode) {
-      await _api().deleteJson('/savings/$id');
-      await loadRemoteSnapshot();
-      return;
-    }
-    final index = savings.indexWhere((item) => item.id == id);
-    if (index == -1) return;
-    savings[index] = savings[index].copyWith(deleted: true);
-    await _persistLocalFinance();
-    notifyListeners();
+    await _api().deleteJson('/savings/$id');
+    await loadRemoteSnapshot();
   }
 
   Future<void> restoreSaving(String id) async {
-    if (!config.mockMode) {
-      await _api().postJson('/savings/$id/restore', {});
-      await loadRemoteSnapshot();
-      return;
-    }
-    final index = savings.indexWhere((item) => item.id == id);
-    if (index == -1) return;
-    savings[index] = savings[index].copyWith(deleted: false);
-    await _persistLocalFinance();
-    notifyListeners();
+    await _api().postJson('/savings/$id/restore', {});
+    await loadRemoteSnapshot();
   }
 
   void _upsertSaving(SavingEntry entry) {
@@ -685,13 +500,6 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  Future<void> _persistLocalFinance() async {
-    if (!config.mockMode) return;
-    await _persistence.writeCategories(categories);
-    await _persistence.writeTransactions(transactions);
-    await _persistence.writeSavings(savings);
-  }
-
   String _dateOnly(DateTime date) => date.toIso8601String().substring(0, 10);
 
   List<Object> recentActivities({int limit = 5}) {
@@ -717,80 +525,5 @@ class AppController extends ChangeNotifier {
     if (!RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(email)) {
       throw ArgumentError('Format email tidak valid');
     }
-  }
-
-  void _seed() {
-    final now = DateTime.now();
-    categories.addAll([
-      const Category(
-        id: 'cat-food',
-        type: CategoryType.expense,
-        name: 'Makan',
-        iconKey: 'food',
-        monthlyBudget: 1200000,
-      ),
-      const Category(
-        id: 'cat-transport',
-        type: CategoryType.expense,
-        name: 'Transport',
-        iconKey: 'transport',
-        monthlyBudget: 500000,
-      ),
-      const Category(
-        id: 'cat-emergency',
-        type: CategoryType.saving,
-        name: 'Dana Darurat',
-        iconKey: 'emergency',
-        savingTarget: 5000000,
-      ),
-    ]);
-    savings.addAll([
-      SavingEntry(
-        id: 'sav-income',
-        type: SavingType.generalIncome,
-        name: 'Gaji Bulanan',
-        amount: 4500000,
-        date: DateTime(now.year, now.month, 1),
-      ),
-      SavingEntry(
-        id: 'sav-emergency',
-        type: SavingType.saving,
-        name: 'Dana Darurat',
-        amount: 350000,
-        date: DateTime(now.year, now.month, 3),
-        categoryId: 'cat-emergency',
-      ),
-    ]);
-    transactions.addAll([
-      TransactionEntry(
-        id: 'tx-lunch',
-        name: 'Makan siang',
-        amount: 35000,
-        categoryId: 'cat-food',
-        date: DateTime(now.year, now.month, min(now.day, 6)),
-        location: const TransactionLocation(
-          latitude: -6.2,
-          longitude: 106.816666,
-          source: TransactionLocationSource.manual,
-        ),
-      ),
-      TransactionEntry(
-        id: 'tx-bus',
-        name: 'Bus kampus',
-        amount: 12000,
-        categoryId: 'cat-transport',
-        date: DateTime(now.year, now.month, min(now.day, 5)),
-      ),
-    ]);
-  }
-
-  String _id(String prefix) =>
-      '$prefix-${DateTime.now().microsecondsSinceEpoch}';
-
-  Category? _categoryById(String id) {
-    for (final category in categories) {
-      if (category.id == id) return category;
-    }
-    return null;
   }
 }

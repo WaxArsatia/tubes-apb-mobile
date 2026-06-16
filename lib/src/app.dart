@@ -309,17 +309,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 )
               : const Text('Masuk'),
         ),
-        const SizedBox(height: 8),
-        FilledButton.tonalIcon(
-          onPressed: controller.loading
-              ? null
-              : () => _submit(
-                  context,
-                  () => controller.login('demo@finu.app', 'password123'),
-                ),
-          icon: const Icon(Icons.play_circle_outline),
-          label: const Text('Masuk sebagai demo'),
-        ),
         TextButton(
           onPressed: () => context.go('/register'),
           child: const Text('Belum punya akun? Daftar'),
@@ -799,7 +788,9 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
   @override
   Widget build(BuildContext context) {
     final controller = ref.watch(appControllerProvider);
-    final monthOptions = _transactionMonthOptions(controller.activeTransactions);
+    final monthOptions = _transactionMonthOptions(
+      controller.activeTransactions,
+    );
     var list = controller.activeTransactions;
     if (month != null) {
       list = list
@@ -998,14 +989,12 @@ class SettingScreen extends ConsumerStatefulWidget {
 
 class _SettingScreenState extends ConsumerState<SettingScreen> {
   late final TextEditingController name;
-  late final TextEditingController baseUrl;
 
   @override
   void initState() {
     super.initState();
     final controller = ref.read(appControllerProvider);
     name = TextEditingController(text: controller.profile?.name);
-    baseUrl = TextEditingController(text: controller.config.apiBaseUrl);
   }
 
   @override
@@ -1070,30 +1059,6 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
             subtitle: const Text(
               'Diberitahu saat budget mendekati batas atau terlampaui',
             ),
-          ),
-          const SizedBox(height: 24),
-          SectionTitle('Konfigurasi aplikasi'),
-          TextField(
-            controller: baseUrl,
-            decoration: const InputDecoration(labelText: 'API Base URL'),
-          ),
-          SwitchListTile(
-            value: controller.config.mockMode,
-            onChanged: (value) async {
-              await controller.updateConfig(
-                controller.config.copyWith(mockMode: value),
-              );
-            },
-            title: const Text('Mode mock'),
-          ),
-          FilledButton.tonal(
-            onPressed: () async {
-              await controller.updateConfig(
-                controller.config.copyWith(apiBaseUrl: baseUrl.text.trim()),
-              );
-              if (context.mounted) _message(context, 'Konfigurasi tersimpan');
-            },
-            child: const Text('Simpan Konfigurasi'),
           ),
           const SizedBox(height: 32),
           FilledButton.icon(
@@ -2421,8 +2386,8 @@ void _showTransactionForm(
                     OutlinedButton.icon(
                       onPressed: () async {
                         try {
-                          final current =
-                              await controller.currentTransactionLocation();
+                          final current = await controller
+                              .currentTransactionLocation();
                           setState(() => location = current);
                         } catch (error) {
                           if (context.mounted) {
@@ -2435,15 +2400,14 @@ void _showTransactionForm(
                     ),
                     OutlinedButton.icon(
                       onPressed: () async {
-                        final picked = await Navigator.of(
-                          context,
-                        ).push<TransactionLocation>(
-                          MaterialPageRoute(
-                            builder: (_) => TransactionLocationPicker(
-                              initialLocation: location,
-                            ),
-                          ),
-                        );
+                        final picked = await Navigator.of(context)
+                            .push<TransactionLocation>(
+                              MaterialPageRoute(
+                                builder: (_) => TransactionLocationPicker(
+                                  initialLocation: location,
+                                ),
+                              ),
+                            );
                         if (picked != null) {
                           setState(() => location = picked);
                         }

@@ -43,8 +43,8 @@ class LocalPersistenceService implements PersistenceService {
   static const _categoriesKey = 'finu_categories';
   static const _transactionsKey = 'finu_transactions';
   static const _savingsKey = 'finu_savings';
-  static const _apiBaseUrlKey = 'finu_api_base_url';
-  static const _mockModeKey = 'finu_mock_mode';
+  static const _legacyApiBaseUrlKey = 'finu_api_base_url';
+  static const _legacyMockModeKey = 'finu_mock_mode';
 
   final FlutterSecureStorage _secureStorage;
   final SharedPreferencesAsync _preferences;
@@ -91,19 +91,15 @@ class LocalPersistenceService implements PersistenceService {
 
   @override
   Future<AppConfig?> readConfig() async {
-    final apiBaseUrl = await _preferences.getString(_apiBaseUrlKey);
-    final mockMode = await _preferences.getBool(_mockModeKey);
-    if (apiBaseUrl == null && mockMode == null) return null;
-    return AppConfig(
-      apiBaseUrl: apiBaseUrl ?? AppConfig.defaultApiBaseUrl,
-      mockMode: mockMode ?? false,
-    );
+    await _preferences.remove(_legacyApiBaseUrlKey);
+    await _preferences.remove(_legacyMockModeKey);
+    return AppConfig.defaultConfig;
   }
 
   @override
   Future<void> writeConfig(AppConfig config) async {
-    await _preferences.setString(_apiBaseUrlKey, config.apiBaseUrl);
-    await _preferences.setBool(_mockModeKey, config.mockMode);
+    await _preferences.remove(_legacyApiBaseUrlKey);
+    await _preferences.remove(_legacyMockModeKey);
   }
 
   @override

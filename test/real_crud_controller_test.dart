@@ -48,7 +48,7 @@ void main() {
       refreshToken: 'refresh',
     );
     await controller.updateConfig(
-      const AppConfig(apiBaseUrl: 'https://api.finu.test', mockMode: false),
+      const AppConfig(apiBaseUrl: 'https://api.finu.test'),
     );
 
     await controller.loadRemoteSnapshot();
@@ -91,8 +91,17 @@ void main() {
         name: 'Alya',
         email: 'alya@example.com',
       );
+      controller.savings.add(
+        SavingEntry(
+          id: 'sav-income',
+          type: SavingType.generalIncome,
+          name: 'Pemasukan',
+          amount: 1000000,
+          date: DateTime(2026, 4),
+        ),
+      );
       await controller.updateConfig(
-        const AppConfig(apiBaseUrl: 'https://api.finu.test', mockMode: false),
+        const AppConfig(apiBaseUrl: 'https://api.finu.test'),
       );
 
       final category = await controller.saveCategory(

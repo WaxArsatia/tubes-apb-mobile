@@ -6,30 +6,49 @@ import 'package:tubes_apb_mobile/src/domain/models.dart';
 
 void main() {
   test(
-    'login persists mock tokens and profile, then initialize hydrates them',
+    'login persists API tokens and profile, then initialize hydrates them',
     () async {
       final persistence = MemoryPersistenceService();
+      final api = RecordingApiClient(
+        baseUrl: AppConfig.defaultApiBaseUrl,
+        responses: {
+          '/auth/login': {
+            'data': {
+              'tokens': {
+                'accessToken': 'api-access',
+                'refreshToken': 'api-refresh',
+              },
+              'user': {
+                'id': 'user-1',
+                'name': 'Alya Finu',
+                'email': 'demo@finu.app',
+              },
+            },
+          },
+        },
+        getResponses: _snapshotResponses(),
+      );
       final controller = AppController(
         persistence: persistence,
         notifications: RecordingNotificationGateway(),
         imagePicker: FixedImagePickerGateway(null),
-      );
-      await controller.updateConfig(
-        const AppConfig(
-          apiBaseUrl: AppConfig.defaultApiBaseUrl,
-          mockMode: true,
-        ),
+        apiClient: api,
       );
 
       await controller.login('demo@finu.app', 'password123');
 
-      expect(persistence.storedTokens?.accessToken, 'mock-access');
+      expect(persistence.storedTokens?.accessToken, 'api-access');
       expect(persistence.storedProfile?.email, 'demo@finu.app');
 
       final restored = AppController(
         persistence: persistence,
         notifications: RecordingNotificationGateway(),
         imagePicker: FixedImagePickerGateway(null),
+        apiClient: RecordingApiClient(
+          baseUrl: AppConfig.defaultApiBaseUrl,
+          responses: const {},
+          getResponses: _snapshotResponses(),
+        ),
       );
       await restored.initialize();
 
@@ -38,7 +57,7 @@ void main() {
     },
   );
 
-  test('runtime config is persisted', () async {
+  test('runtime config always resolves to production backend', () async {
     final persistence = MemoryPersistenceService();
     final controller = AppController(
       persistence: persistence,
@@ -47,11 +66,11 @@ void main() {
     );
 
     await controller.updateConfig(
-      const AppConfig(apiBaseUrl: 'https://api.example.test', mockMode: false),
+      const AppConfig(apiBaseUrl: 'https://api.example.test'),
     );
 
-    expect(persistence.storedConfig?.apiBaseUrl, 'https://api.example.test');
-    expect(persistence.storedConfig?.mockMode, isFalse);
+    expect(controller.config.apiBaseUrl, AppConfig.defaultApiBaseUrl);
+    expect(persistence.storedConfig?.apiBaseUrl, AppConfig.defaultApiBaseUrl);
   });
 
   test('default config points to deployed backend in real mode', () {
@@ -62,7 +81,6 @@ void main() {
     );
 
     expect(controller.config.apiBaseUrl, 'https://apb-api.denis.my.id');
-    expect(controller.config.mockMode, isFalse);
   });
 
   test(
@@ -74,14 +92,29 @@ void main() {
         persistence: persistence,
         notifications: notifications,
         imagePicker: FixedImagePickerGateway(null),
-      );
-      await controller.updateConfig(
-        const AppConfig(
-          apiBaseUrl: AppConfig.defaultApiBaseUrl,
-          mockMode: true,
+        apiClient: RecordingApiClient(
+          baseUrl: AppConfig.defaultApiBaseUrl,
+          responses: {
+            '/settings/notifications': {
+              'data': {
+                'id': 'user-1',
+                'name': 'Alya Finu',
+                'email': 'demo@finu.app',
+                'budgetNotificationEnabled': true,
+              },
+            },
+          },
         ),
       );
-      await controller.login('demo@finu.app', 'password123');
+      controller.tokens = const AuthTokens(
+        accessToken: 'access',
+        refreshToken: 'refresh',
+      );
+      controller.profile = const UserProfile(
+        id: 'user-1',
+        name: 'Alya Finu',
+        email: 'demo@finu.app',
+      );
 
       await controller.updateNotification(true);
 
@@ -96,11 +129,45 @@ void main() {
       persistence: MemoryPersistenceService(),
       notifications: notifications,
       imagePicker: FixedImagePickerGateway(null),
+      apiClient: RecordingApiClient(
+        baseUrl: AppConfig.defaultApiBaseUrl,
+        responses: {
+          '/transactions': {
+            'data': {
+              'id': 'tx-budget',
+              'name': 'Belanja besar',
+              'amount': 2000000,
+              'categoryId': 'cat-food',
+              'date': '2026-04-10',
+              'note': null,
+              'location': null,
+            },
+            'warnings': [
+              {'message': 'Transaksi ini akan melebihi budget category'},
+            ],
+          },
+        },
+      ),
     );
-    await controller.updateConfig(
-      const AppConfig(apiBaseUrl: AppConfig.defaultApiBaseUrl, mockMode: true),
+    controller.tokens = const AuthTokens(
+      accessToken: 'access',
+      refreshToken: 'refresh',
     );
-    await controller.login('demo@finu.app', 'password123');
+    controller.profile = const UserProfile(
+      id: 'user-1',
+      name: 'Alya Finu',
+      email: 'demo@finu.app',
+      budgetNotificationEnabled: true,
+    );
+    controller.categories.add(
+      const Category(
+        id: 'cat-food',
+        type: CategoryType.expense,
+        name: 'Makan',
+        iconKey: 'food',
+        monthlyBudget: 1200000,
+      ),
+    );
 
     await controller.saveTransaction(
       name: 'Belanja besar',
@@ -122,11 +189,20 @@ void main() {
       persistence: persistence,
       notifications: RecordingNotificationGateway(),
       imagePicker: FixedImagePickerGateway('/tmp/profile.png'),
+      apiClient: RecordingApiClient(
+        baseUrl: AppConfig.defaultApiBaseUrl,
+        responses: const {},
+      ),
     );
-    await controller.updateConfig(
-      const AppConfig(apiBaseUrl: AppConfig.defaultApiBaseUrl, mockMode: true),
+    controller.tokens = const AuthTokens(
+      accessToken: 'access',
+      refreshToken: 'refresh',
     );
-    await controller.login('demo@finu.app', 'password123');
+    controller.profile = const UserProfile(
+      id: 'user-1',
+      name: 'Alya Finu',
+      email: 'demo@finu.app',
+    );
 
     await controller.pickAndUploadProfilePhoto();
 
@@ -162,7 +238,7 @@ void main() {
       apiClient: api,
     );
     await controller.updateConfig(
-      const AppConfig(apiBaseUrl: 'https://api.finu.test', mockMode: false),
+      const AppConfig(apiBaseUrl: 'https://api.finu.test'),
     );
     controller.tokens = const AuthTokens(
       accessToken: 'access',
@@ -222,58 +298,53 @@ void main() {
     expect(location.source, TransactionLocationSource.gps);
   });
 
-  test('mock finance entries survive controller reinitialization', () async {
+  test('remote finance entries hydrate controller initialization', () async {
     final persistence = MemoryPersistenceService();
+    persistence.storedTokens = const AuthTokens(
+      accessToken: 'access',
+      refreshToken: 'refresh',
+    );
+    persistence.storedProfile = const UserProfile(
+      id: 'user-1',
+      name: 'Alya Finu',
+      email: 'demo@finu.app',
+    );
     final controller = AppController(
       persistence: persistence,
       notifications: RecordingNotificationGateway(),
       imagePicker: FixedImagePickerGateway(null),
+      apiClient: RecordingApiClient(
+        baseUrl: AppConfig.defaultApiBaseUrl,
+        responses: const {},
+        getResponses: _snapshotResponses(),
+      ),
     );
-    await controller.updateConfig(
-      const AppConfig(apiBaseUrl: AppConfig.defaultApiBaseUrl, mockMode: true),
-    );
+    await controller.initialize();
 
-    await controller.saveTransaction(
-      name: 'Kopi',
-      amount: 18000,
-      categoryId: 'cat-food',
-      date: DateTime(2026, 4, 10),
-    );
-    await controller.saveSaving(
-      type: SavingType.generalIncome,
-      name: 'Freelance',
-      amount: 250000,
-      date: DateTime(2026, 4, 11),
-    );
-    await controller.saveSaving(
-      type: SavingType.saving,
-      name: 'Dana darurat ekstra',
-      amount: 50000,
-      categoryId: 'cat-emergency',
-      date: DateTime(2026, 4, 12),
-    );
-
-    final restored = AppController(
-      persistence: persistence,
-      notifications: RecordingNotificationGateway(),
-      imagePicker: FixedImagePickerGateway(null),
-    );
-    await restored.initialize();
-
-    expect(restored.transactions.any((tx) => tx.name == 'Kopi'), isTrue);
-    expect(restored.savings.any((item) => item.name == 'Freelance'), isTrue);
+    expect(controller.transactions.any((tx) => tx.name == 'Kopi'), isTrue);
+    expect(controller.savings.any((item) => item.name == 'Freelance'), isTrue);
     expect(
-      restored.savings.any((item) => item.name == 'Dana darurat ekstra'),
+      controller.savings.any((item) => item.name == 'Dana darurat ekstra'),
       isTrue,
     );
   });
 }
 
 class RecordingApiClient extends ApiClient {
-  RecordingApiClient({required super.baseUrl, required this.responses});
+  RecordingApiClient({
+    required super.baseUrl,
+    required this.responses,
+    this.getResponses = const {},
+  });
 
   final Map<String, Map<String, dynamic>> responses;
+  final Map<String, Map<String, dynamic>> getResponses;
   Map<String, dynamic>? lastJsonBody;
+
+  @override
+  Future<Map<String, dynamic>> getJson(String path) async {
+    return getResponses[path] ?? <String, dynamic>{'data': <dynamic>[]};
+  }
 
   @override
   Future<Map<String, dynamic>> postJson(
@@ -292,4 +363,74 @@ class RecordingApiClient extends ApiClient {
     lastJsonBody = body;
     return responses[path] ?? <String, dynamic>{};
   }
+
+  @override
+  Future<Map<String, dynamic>> uploadProfilePhoto(String filePath) async {
+    return responses['/profile/photo'] ?? <String, dynamic>{};
+  }
 }
+
+Map<String, Map<String, dynamic>> _snapshotResponses() => {
+  '/profile': {
+    'data': {'id': 'user-1', 'name': 'Alya Finu', 'email': 'demo@finu.app'},
+  },
+  '/categories?type=expense': {
+    'data': [
+      {
+        'id': 'cat-food',
+        'type': 'expense',
+        'name': 'Makan',
+        'iconKey': 'food',
+        'monthlyBudget': 1200000,
+        'savingTarget': null,
+      },
+    ],
+  },
+  '/categories?type=saving': {
+    'data': [
+      {
+        'id': 'cat-emergency',
+        'type': 'saving',
+        'name': 'Dana Darurat',
+        'iconKey': 'emergency',
+        'monthlyBudget': null,
+        'savingTarget': 5000000,
+      },
+    ],
+  },
+  '/transactions?limit=100': {
+    'data': [
+      {
+        'id': 'tx-kopi',
+        'name': 'Kopi',
+        'amount': 18000,
+        'categoryId': 'cat-food',
+        'date': '2026-04-10',
+        'note': null,
+        'location': null,
+      },
+    ],
+  },
+  '/savings?limit=100': {
+    'data': [
+      {
+        'id': 'sav-income',
+        'type': 'general_income',
+        'name': 'Freelance',
+        'amount': 250000,
+        'date': '2026-04-11',
+        'categoryId': null,
+        'note': null,
+      },
+      {
+        'id': 'sav-emergency',
+        'type': 'saving',
+        'name': 'Dana darurat ekstra',
+        'amount': 50000,
+        'date': '2026-04-12',
+        'categoryId': 'cat-emergency',
+        'note': null,
+      },
+    ],
+  },
+};
