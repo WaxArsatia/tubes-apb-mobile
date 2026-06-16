@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-label="FinU empty state illustration">
+  <rect width="720" height="420" rx="32" fill="#F4FAF7"/>
+  <rect x="128" y="92" width="304" height="236" rx="28" fill="#FFFFFF" stroke="#BFD8D0" stroke-width="4"/>
+  <path d="M168 148h224M168 202h168M168 256h124" stroke="#146C5F" stroke-width="18" stroke-linecap="round"/>
+  <circle cx="504" cy="226" r="86" fill="#F4B740"/>
+  <path d="M469 226h70M504 191v70" stroke="#0B3B34" stroke-width="18" stroke-linecap="round"/>
+  <path d="M146 350c98 34 272 34 428 0" stroke="#BFD8D0" stroke-width="8" stroke-linecap="round"/>
+</svg>

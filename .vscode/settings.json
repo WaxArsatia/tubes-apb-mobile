@@ -1,0 +1,13 @@
+{
+  "java.jdt.ls.java.home": "/opt/android-studio/jbr",
+  "java.import.gradle.java.home": "/opt/android-studio/jbr",
+  "gradle.java.home": "/opt/android-studio/jbr",
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-21",
+      "path": "/opt/android-studio/jbr",
+      "default": true
+    }
+  ],
+  "cmake.ignoreCMakeListsMissing": true
+}
