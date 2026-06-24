@@ -5,6 +5,26 @@ import 'package:tubes_apb_mobile/src/data/local_services.dart';
 import 'package:tubes_apb_mobile/src/domain/models.dart';
 
 void main() {
+  test('failed login resets loading state', () async {
+    final controller = AppController(
+      persistence: MemoryPersistenceService(),
+      notifications: RecordingNotificationGateway(),
+      imagePicker: FixedImagePickerGateway(null),
+      apiClient: RecordingApiClient(
+        baseUrl: AppConfig.defaultApiBaseUrl,
+        responses: const {},
+        throwingPostPaths: const {'/auth/login'},
+      ),
+    );
+
+    await expectLater(
+      controller.login('demo@finu.app', 'password123'),
+      throwsA(isA<StateError>()),
+    );
+
+    expect(controller.loading, isFalse);
+  });
+
   test(
     'login persists API tokens and profile, then initialize hydrates them',
     () async {
@@ -210,6 +230,34 @@ void main() {
     expect(persistence.storedProfile?.profilePhotoUrl, '/tmp/profile.png');
   });
 
+  test('resetPassword sends backend newPassword payload key', () async {
+    final api = RecordingApiClient(
+      baseUrl: AppConfig.defaultApiBaseUrl,
+      responses: const {
+        '/auth/reset-password': {'data': true},
+      },
+    );
+    final controller = AppController(
+      persistence: MemoryPersistenceService(),
+      notifications: RecordingNotificationGateway(),
+      imagePicker: FixedImagePickerGateway(null),
+      apiClient: api,
+    );
+
+    await controller.resetPassword(
+      'reset@example.com',
+      'A1B2C3',
+      'newpassword123',
+    );
+
+    expect(api.lastJsonBody, {
+      'email': 'reset@example.com',
+      'code': 'A1B2C3',
+      'newPassword': 'newpassword123',
+    });
+    expect(api.lastJsonBody, isNot(containsPair('password', anything)));
+  });
+
   test('saveTransaction sends location to production API', () async {
     final api = RecordingApiClient(
       baseUrl: 'https://api.finu.test',
@@ -328,6 +376,60 @@ void main() {
       isTrue,
     );
   });
+
+  test(
+    'remote finance snapshot persists for later no-token hydration',
+    () async {
+      final persistence = MemoryPersistenceService();
+      final controller = AppController(
+        persistence: persistence,
+        notifications: RecordingNotificationGateway(),
+        imagePicker: FixedImagePickerGateway(null),
+        apiClient: RecordingApiClient(
+          baseUrl: AppConfig.defaultApiBaseUrl,
+          responses: const {},
+          getResponses: _snapshotResponses(),
+        ),
+      );
+      controller.tokens = const AuthTokens(
+        accessToken: 'access',
+        refreshToken: 'refresh',
+      );
+
+      await controller.loadRemoteSnapshot();
+
+      expect(
+        persistence.storedCategories?.map((item) => item.id),
+        containsAll(<String>['cat-food', 'cat-emergency']),
+      );
+      expect(persistence.storedTransactions?.single.name, 'Kopi');
+      expect(
+        persistence.storedSavings?.map((item) => item.name),
+        containsAll(<String>['Freelance', 'Dana darurat ekstra']),
+      );
+
+      final restored = AppController(
+        persistence: persistence,
+        notifications: RecordingNotificationGateway(),
+        imagePicker: FixedImagePickerGateway(null),
+        apiClient: RecordingApiClient(
+          baseUrl: AppConfig.defaultApiBaseUrl,
+          responses: const {},
+        ),
+      );
+      await restored.initialize();
+
+      expect(
+        restored.categories.map((item) => item.id),
+        containsAll(<String>['cat-food', 'cat-emergency']),
+      );
+      expect(restored.transactions.single.name, 'Kopi');
+      expect(
+        restored.savings.map((item) => item.name),
+        containsAll(<String>['Freelance', 'Dana darurat ekstra']),
+      );
+    },
+  );
 }
 
 class RecordingApiClient extends ApiClient {
@@ -335,10 +437,12 @@ class RecordingApiClient extends ApiClient {
     required super.baseUrl,
     required this.responses,
     this.getResponses = const {},
+    this.throwingPostPaths = const {},
   });
 
   final Map<String, Map<String, dynamic>> responses;
   final Map<String, Map<String, dynamic>> getResponses;
+  final Set<String> throwingPostPaths;
   Map<String, dynamic>? lastJsonBody;
 
   @override
@@ -351,6 +455,9 @@ class RecordingApiClient extends ApiClient {
     String path,
     Map<String, dynamic> body,
   ) async {
+    if (throwingPostPaths.contains(path)) {
+      throw StateError('forced failure for $path');
+    }
     lastJsonBody = body;
     return responses[path] ?? <String, dynamic>{};
   }

@@ -72,6 +72,13 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> uploadProfilePhoto(String filePath) async {
+    final response = await _sendWithRefresh(
+      () => _sendProfilePhotoRequest(filePath),
+    );
+    return _handle(response);
+  }
+
+  Future<http.Response> _sendProfilePhotoRequest(String filePath) async {
     final request = http.MultipartRequest('POST', _uri('/profile/photo'));
     final token = tokens?.accessToken;
     if (token != null) {
@@ -79,7 +86,7 @@ class ApiClient {
     }
     request.files.add(await http.MultipartFile.fromPath('photo', filePath));
     final streamed = await request.send();
-    return _handle(await http.Response.fromStream(streamed));
+    return http.Response.fromStream(streamed);
   }
 
   Future<http.Response> _sendWithRefresh(

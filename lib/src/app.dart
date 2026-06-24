@@ -17,7 +17,7 @@ final appControllerProvider = ChangeNotifierProvider<AppController>((ref) {
 });
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final controller = ref.watch(appControllerProvider);
+  final controller = ref.read(appControllerProvider);
   return GoRouter(
     initialLocation: '/login',
     refreshListenable: controller,
@@ -42,7 +42,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/forgot',
         builder: (context, state) => const ForgotScreen(),
       ),
-      GoRoute(path: '/reset', builder: (context, state) => const ResetScreen()),
+      GoRoute(
+        path: '/reset',
+        builder: (context, state) =>
+            ResetScreen(initialEmail: state.uri.queryParameters['email']),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             AppShell(navigationShell: navigationShell),
@@ -398,6 +402,12 @@ class _ForgotScreenState extends ConsumerState<ForgotScreen> {
   final email = TextEditingController();
 
   @override
+  void dispose() {
+    email.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final controller = ref.watch(appControllerProvider);
     return AuthScaffold(
@@ -416,6 +426,9 @@ class _ForgotScreenState extends ConsumerState<ForgotScreen> {
                   context,
                   () => controller.forgotPassword(email.text),
                   success: 'Kode reset dikirim ke email kamu',
+                  afterSuccess: () => context.go(
+                    '/reset?email=${Uri.encodeComponent(email.text.trim())}',
+                  ),
                 ),
           child: const Text('Kirim Kode Reset'),
         ),
@@ -429,7 +442,9 @@ class _ForgotScreenState extends ConsumerState<ForgotScreen> {
 }
 
 class ResetScreen extends ConsumerStatefulWidget {
-  const ResetScreen({super.key});
+  const ResetScreen({super.key, this.initialEmail});
+
+  final String? initialEmail;
 
   @override
   ConsumerState<ResetScreen> createState() => _ResetScreenState();
@@ -439,6 +454,23 @@ class _ResetScreenState extends ConsumerState<ResetScreen> {
   final email = TextEditingController();
   final code = TextEditingController();
   final password = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final initialEmail = widget.initialEmail;
+    if (initialEmail != null && initialEmail.isNotEmpty) {
+      email.text = initialEmail;
+    }
+  }
+
+  @override
+  void dispose() {
+    email.dispose();
+    code.dispose();
+    password.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

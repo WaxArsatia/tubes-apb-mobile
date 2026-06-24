@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:tubes_apb_mobile/src/app.dart';
+import 'package:tubes_apb_mobile/src/data/api_client.dart';
 import 'package:tubes_apb_mobile/src/data/app_controller.dart';
 import 'package:tubes_apb_mobile/src/data/local_services.dart';
 import 'package:tubes_apb_mobile/src/domain/models.dart';
@@ -12,11 +13,15 @@ void main() {
     await initializeDateFormatting('id_ID');
   });
 
-  Future<AppController> pumpUnauthenticatedApp(WidgetTester tester) async {
+  Future<AppController> pumpUnauthenticatedApp(
+    WidgetTester tester, {
+    ApiClient? apiClient,
+  }) async {
     final controller = AppController(
       persistence: MemoryPersistenceService(),
       notifications: RecordingNotificationGateway(),
       imagePicker: FixedImagePickerGateway(null),
+      apiClient: apiClient,
     )..initialized = true;
 
     await tester.pumpWidget(
@@ -108,6 +113,34 @@ void main() {
     expect(find.text('Minimal 8 karakter'), findsOneWidget);
   });
 
+  testWidgets('forgot password success opens reset code screen', (
+    tester,
+  ) async {
+    await pumpUnauthenticatedApp(
+      tester,
+      apiClient: _WidgetApiClient(
+        responses: const {
+          '/auth/forgot-password': {
+            'data': {'success': true},
+          },
+        },
+      ),
+    );
+
+    await tester.tap(find.text('Lupa password?'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Email'),
+      'reset@example.com',
+    );
+    await tester.tap(find.text('Kirim Kode Reset'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Atur ulang kata sandi'), findsWidgets);
+    expect(find.widgetWithText(TextField, 'Kode Reset'), findsOneWidget);
+    expect(find.text('reset@example.com'), findsOneWidget);
+  });
+
   testWidgets('authenticated users reach Beranda with Indonesian navigation', (
     tester,
   ) async {
@@ -183,4 +216,19 @@ void main() {
     expect(find.text('Mode mock'), findsNothing);
     expect(find.text('Simpan Konfigurasi'), findsNothing);
   });
+}
+
+class _WidgetApiClient extends ApiClient {
+  _WidgetApiClient({required this.responses})
+    : super(baseUrl: AppConfig.defaultApiBaseUrl);
+
+  final Map<String, Map<String, dynamic>> responses;
+
+  @override
+  Future<Map<String, dynamic>> postJson(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    return responses[path] ?? <String, dynamic>{};
+  }
 }

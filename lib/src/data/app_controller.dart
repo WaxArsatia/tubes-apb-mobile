@@ -129,7 +129,7 @@ class AppController extends ChangeNotifier {
       await _api().postJson('/auth/reset-password', {
         'email': email,
         'code': code,
-        'password': password,
+        'newPassword': password,
       });
     });
   }
@@ -227,6 +227,9 @@ class AppController extends ChangeNotifier {
       ..clear()
       ..addAll(_listData(savingEnvelope).map(SavingEntry.fromJson));
     if (profile != null) await _persistence.writeProfile(profile!);
+    await _persistence.writeCategories(categories);
+    await _persistence.writeTransactions(transactions);
+    await _persistence.writeSavings(savings);
     notifyListeners();
   }
 
@@ -515,10 +518,13 @@ class AppController extends ChangeNotifier {
   Future<void> _busy(Future<void> Function() action) async {
     loading = true;
     notifyListeners();
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    await action();
-    loading = false;
-    notifyListeners();
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      await action();
+    } finally {
+      loading = false;
+      notifyListeners();
+    }
   }
 
   void _validateEmail(String email) {
